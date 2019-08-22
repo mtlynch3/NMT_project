@@ -1,0 +1,7 @@
+*.txt filter=lfs diff=lfs merge=lfs -text
+trimmedSpanish.txt filter=lfs diff=lfs merge=lfs -text
+trimmedEnglish.txt filter=lfs diff=lfs merge=lfs -text
+decoder-eng-spa-OpenSub.pt filter=lfs diff=lfs merge=lfs -text
+decoder-spa-eng-OpenSub.pt filter=lfs diff=lfs merge=lfs -text
+encoder-eng-spa-OpenSub.pt filter=lfs diff=lfs merge=lfs -text
+encoder-spa-eng-OpenSub.pt filter=lfs diff=lfs merge=lfs -text
