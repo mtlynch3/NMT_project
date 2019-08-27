@@ -13,10 +13,6 @@ from torch import optim
 import torch.nn.functional as F
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if torch.cuda.is_available():
-    print("Using GPU...")
-else:
-    print("Using CPU...")
 
 ######################################################################
 # Loading data files
@@ -52,6 +48,7 @@ class Lang:
 # The files are all in Unicode, to simplify we will turn Unicode
 # characters to ASCII, make everything lowercase, and trim most
 # punctuation.
+#
 
 def unicodeToAscii(s):
     return ''.join(
@@ -80,15 +77,11 @@ def readLangs(lang1, lang2, reverse=False):
     print("Reading lines...")
 
     # Read the file and split into lines
-    spLines = open('trimmedSpanish.txt', encoding='utf-8').\
-        read().strip().split('\n')
-    enLines = open('trimmedEnglish.txt', encoding='utf-8').\
+    lines = open('data/%s-%s.txt' % (lang1, lang2), encoding='utf-8').\
         read().strip().split('\n')
 
     # Split every line into pairs and normalize
-    pairs = []
-    for i in range(len(spLines)):
-        pairs.append([normalizeString(enLines[i]), normalizeString(spLines[i])])
+    pairs = [[normalizeString(s) for s in l.split('\t')] for l in lines]
 
     # Reverse pairs, make Lang instances
     if reverse:
@@ -108,10 +101,20 @@ def readLangs(lang1, lang2, reverse=False):
 
 MAX_LENGTH = 10
 
+eng_prefixes = (
+    "i am ", "i m ",
+    "he is", "he s ",
+    "she is", "she s ",
+    "you are", "you re ",
+    "we are", "we re ",
+    "they are", "they re "
+)
+
 
 def filterPair(p):
     return len(p[0].split(' ')) < MAX_LENGTH and \
-        len(p[1].split(' ')) < MAX_LENGTH 
+        len(p[1].split(' ')) < MAX_LENGTH and \
+        p[1].startswith(eng_prefixes)
 
 
 def filterPairs(pairs):
@@ -141,6 +144,9 @@ def prepareData(lang1, lang2, reverse=False):
     return input_lang, output_lang, pairs
 
 
+input_lang, output_lang, pairs = prepareData('eng', 'fra', True)
+print(random.choice(pairs))
+
 
 ######################################################################
 # The Seq2Seq Model
@@ -149,11 +155,12 @@ def prepareData(lang1, lang2, reverse=False):
 # A Recurrent Neural Network, or RNN, is a network that operates on a
 # sequence and uses its own output as input for subsequent steps.
 #
-# A Sequence to Sequence network, or Encoder Decoder network, is a model
+# A `Sequence to Sequence network <https://arxiv.org/abs/1409.3215>`__, or
+# seq2seq network, or `Encoder Decoder
+# network <https://arxiv.org/pdf/1406.1078v3.pdf>`__, is a model
 # consisting of two RNNs called the encoder and decoder. The encoder reads
 # an input sequence and outputs a single vector, and the decoder reads
 # that vector to produce an output sequence.
-#
 
 
 ######################################################################
@@ -165,7 +172,9 @@ def prepareData(lang1, lang2, reverse=False):
 # outputs a vector and a hidden state, and uses the hidden state for the
 # next input word.
 #
-
+# .. figure:: /_static/img/seq-seq-images/encoder-network.png
+#    :alt:
+#
 #
 
 class EncoderRNN(nn.Module):
@@ -175,13 +184,11 @@ class EncoderRNN(nn.Module):
 
         self.embedding = nn.Embedding(input_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
-        self.gru2 = nn.GRU(hidden_size, hidden_size)
 
     def forward(self, input, hidden):
         embedded = self.embedding(input).view(1, 1, -1)
         output = embedded
         output, hidden = self.gru(output, hidden)
-        output, hidden = self.gru2(output, hidden)
         return output, hidden
 
     def initHidden(self):
@@ -200,16 +207,6 @@ class EncoderRNN(nn.Module):
 # Simple Decoder
 # ^^^^^^^^^^^^^^
 #
-# In the simplest seq2seq decoder we use only last output of the encoder.
-# This last output is sometimes called the *context vector* as it encodes
-# context from the entire sequence. This context vector is used as the
-# initial hidden state of the decoder.
-#
-# At every step of decoding, the decoder is given an input token and
-# hidden state. The initial input token is the start-of-string ``<SOS>``
-# token, and the first hidden state is the context vector (the encoder's
-# last hidden state).
-
 
 class DecoderRNN(nn.Module):
     def __init__(self, hidden_size, output_size):
@@ -218,7 +215,6 @@ class DecoderRNN(nn.Module):
 
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
-        self.gru2 = nn.GRU(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
 
@@ -226,13 +222,11 @@ class DecoderRNN(nn.Module):
         output = self.embedding(input).view(1, 1, -1)
         output = F.relu(output)
         output, hidden = self.gru(output, hidden)
-        output, hidden = self.gru2(output, hidden)
         output = self.softmax(self.out(output[0]))
         return output, hidden
 
     def initHidden(self):
         return torch.zeros(1, 1, self.hidden_size, device=device)
-
 
 
 ######################################################################
@@ -258,6 +252,9 @@ class DecoderRNN(nn.Module):
 # to. Sentences of the maximum length will use all the attention weights,
 # while shorter sentences will only use the first few.
 #
+# .. figure:: /_static/img/seq-seq-images/attention-decoder-network.png
+#    :alt:
+#
 #
 
 class AttnDecoderRNN(nn.Module):
@@ -273,7 +270,6 @@ class AttnDecoderRNN(nn.Module):
         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.dropout = nn.Dropout(self.dropout_p)
         self.gru = nn.GRU(self.hidden_size, self.hidden_size)
-        self.gru2 = nn.GRU(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, input, hidden, encoder_outputs):
@@ -290,7 +286,6 @@ class AttnDecoderRNN(nn.Module):
 
         output = F.relu(output)
         output, hidden = self.gru(output, hidden)
-        output, hidden = self.gru2(output, hidden)
 
         output = F.log_softmax(self.out(output[0]), dim=1)
         return output, hidden, attn_weights
@@ -300,6 +295,10 @@ class AttnDecoderRNN(nn.Module):
 
 
 ######################################################################
+# .. note:: There are other forms of attention that work around the length
+#   limitation by using a relative position approach. Read about "local
+#   attention" in `Effective Approaches to Attention-based Neural Machine
+#   Translation <https://arxiv.org/abs/1508.04025>`__.
 #
 # Training
 # ========
@@ -338,6 +337,22 @@ def tensorsFromPair(pair):
 # the ``<SOS>`` token as its first input, and the last hidden state of the
 # encoder as its first hidden state.
 #
+# "Teacher forcing" is the concept of using the real target outputs as
+# each next input, instead of using the decoder's guess as the next input.
+# Using teacher forcing causes it to converge faster but `when the trained
+# network is exploited, it may exhibit
+# instability <http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.378.4095&rep=rep1&type=pdf>`__.
+#
+# You can observe outputs of teacher-forced networks that read with
+# coherent grammar but wander far from the correct translation -
+# intuitively it has learned to represent the output grammar and can "pick
+# up" the meaning once the teacher tells it the first few words, but it
+# has not properly learned how to create the sentence from the translation
+# in the first place.
+#
+# Because of the freedom PyTorch's autograd gives us, we can randomly
+# choose to use teacher forcing or not with a simple if statement. Turn
+# ``teacher_forcing_ratio`` up to use more of it.
 #
 
 teacher_forcing_ratio = 0.5
@@ -430,7 +445,7 @@ def timeSince(since, percent):
 # of examples, time so far, estimated time) and average loss.
 #
 
-def trainEpoch(encoder, decoder, print_every=1000, plot_every=100, learning_rate=0.01):
+def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -438,10 +453,12 @@ def trainEpoch(encoder, decoder, print_every=1000, plot_every=100, learning_rate
 
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
+    training_pairs = [tensorsFromPair(random.choice(pairs))
+                      for i in range(n_iters)]
     criterion = nn.NLLLoss()
 
-    for iter in range(1, len(pairs) + 1):
-        training_pair = tensorsFromPair(pairs[iter - 1])
+    for iter in range(1, n_iters + 1):
+        training_pair = training_pairs[iter - 1]
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
 
@@ -453,8 +470,8 @@ def trainEpoch(encoder, decoder, print_every=1000, plot_every=100, learning_rate
         if iter % print_every == 0:
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
-            print('%s (%d %d%%) %.4f' % (timeSince(start, iter / (len(pairs) + 1)),
-                                         iter, iter / (len(pairs) + 1) * 100, print_loss_avg))
+            print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
+                                         iter, iter / n_iters * 100, print_loss_avg))
 
         if iter % plot_every == 0:
             plot_loss_avg = plot_loss_total / plot_every
@@ -550,42 +567,117 @@ def evaluateRandomly(encoder, decoder, n=10):
         print('')
 
 
+######################################################################
+# Training and Evaluating
+# =======================
+#
+# With all these helper functions in place (it looks like extra work, but
+# it makes it easier to run multiple experiments) we can actually
+# initialize a network and start training.
+#
+# Remember that the input sentences were heavily filtered. For this small
+# dataset we can use relatively small networks of 256 hidden nodes and a
+# single GRU layer. After about 40 minutes on a MacBook CPU we'll get some
+# reasonable results.
+#
+# .. Note::
+#    If you run this notebook you can train, interrupt the kernel,
+#    evaluate, and continue training later. Comment out the lines where the
+#    encoder and decoder are initialized and run ``trainIters`` again.
+#
 
-def evaluateFromInput(encoder, decoder):
-    #get input setence, pair[0] in example above
-    print()
+hidden_size = 256
+encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
+attn_decoder1 = AttnDecoderRNN(hidden_size, output_lang.n_words, dropout_p=0.1).to(device)
 
-    print("Enter a sentence: ")
-    input_sentence = input(">> ")
-    print()
-    
-    output_words, attentions = evaluate(encoder, decoder, input_sentence)
-    output_sentence = ' '.join(output_words)
+trainIters(encoder1, attn_decoder1, 75000, print_every=5000)
 
-    print("Translation: ")
-    print(">> ", output_sentence)
+######################################################################
+#
 
-    print()
+evaluateRandomly(encoder1, attn_decoder1)
 
 
-# execuatable stuff
+######################################################################
+# Visualizing Attention
+# ---------------------
+#
+# A useful property of the attention mechanism is its highly interpretable
+# outputs. Because it is used to weight specific encoder outputs of the
+# input sequence, we can imagine looking where the network is focused most
+# at each time step.
+#
+# You could simply run ``plt.matshow(attentions)`` to see attention output
+# displayed as a matrix, with the columns being input steps and rows being
+# output steps:
+#
 
-input_lang, output_lang, pairs = prepareData('eng', 'spa')
-print(random.choice(pairs))
+output_words, attentions = evaluate(
+    encoder1, attn_decoder1, "je suis trop froid .")
+plt.matshow(attentions.numpy())
 
-hidden_size = 512
-# number of times trainEpoch(...) gets run
-num_epochs = 5
-# learning rates for each epoch
-epoch_learning_rates = [0.01, 0.01, 0.001, 0.001, 0.001]
 
-if __name__ == "__main__":
-    encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
-    attn_decoder1 = AttnDecoderRNN(hidden_size, output_lang.n_words, dropout_p=0.1).to(device)
-    for epoch in range(num_epochs):
-    	print("Training epoch: " + str(epoch))
-    	trainEpoch(encoder1, attn_decoder1, print_every=5000, learning_rate=epoch_learning_rates[epoch])
-    print("Done with training! Enjoy your model(s) <3")
-    torch.save(encoder1, "encoder-spa-eng-OpenSub.pt")
-    torch.save(attn_decoder1, "decoder-spa-eng-OpenSub.pt")
+######################################################################
+# For a better viewing experience we will do the extra work of adding axes
+# and labels:
+#
 
+def showAttention(input_sentence, output_words, attentions):
+    # Set up figure with colorbar
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    cax = ax.matshow(attentions.numpy(), cmap='bone')
+    fig.colorbar(cax)
+
+    # Set up axes
+    ax.set_xticklabels([''] + input_sentence.split(' ') +
+                       ['<EOS>'], rotation=90)
+    ax.set_yticklabels([''] + output_words)
+
+    # Show label at every tick
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+    plt.show()
+
+
+def evaluateAndShowAttention(input_sentence):
+    output_words, attentions = evaluate(
+        encoder1, attn_decoder1, input_sentence)
+    print('input =', input_sentence)
+    print('output =', ' '.join(output_words))
+    showAttention(input_sentence, output_words, attentions)
+
+
+evaluateAndShowAttention("elle a cinq ans de moins que moi .")
+
+evaluateAndShowAttention("elle est trop petit .")
+
+evaluateAndShowAttention("je ne crains pas de mourir .")
+
+evaluateAndShowAttention("c est un jeune directeur plein de talent .")
+
+
+######################################################################
+# Exercises
+# =========
+#
+# -  Try with a different dataset
+#
+#    -  Another language pair
+#    -  Human → Machine (e.g. IOT commands)
+#    -  Chat → Response
+#    -  Question → Answer
+#
+# -  Replace the embeddings with pre-trained word embeddings such as word2vec or
+#    GloVe
+# -  Try with more layers, more hidden units, and more sentences. Compare
+#    the training time and results.
+# -  If you use a translation file where pairs have two of the same phrase
+#    (``I am test \t I am test``), you can use this as an autoencoder. Try
+#    this:
+#
+#    -  Train as an autoencoder
+#    -  Save only the Encoder network
+#    -  Train a new Decoder for translation from there
+#
