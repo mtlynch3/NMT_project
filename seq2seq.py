@@ -70,13 +70,11 @@ def normalizeString(s):
 
 
 ######################################################################
-# To read the data file we will split the file into lines, and then split
-# lines into pairs. The files are all English → Other Language, so if we
-# want to translate from Other Language → English I added the ``reverse``
-# flag to reverse the pairs.
-#
 
-def readLangs(lang1, lang2, reverse=False):
+#first parameter is language in, second is language out
+#reverse=False assumes you are translating from english to spanish
+#call with reverse=True when translating spanish to english
+def readLangs(lang_in, lang_out):
     print("Reading lines...")
 
     # Read the file and split into lines
@@ -86,18 +84,19 @@ def readLangs(lang1, lang2, reverse=False):
         read().strip().split('\n')
 
     # Split every line into pairs and normalize
+    #assume english to spanish
     pairs = []
     for i in range(len(spLines)):
         pairs.append([normalizeString(enLines[i]), normalizeString(spLines[i])])
 
-    # Reverse pairs, make Lang instances
-    if reverse:
+    #check if spanish was input lang
+    #if it was then we need to reverse the pairs we just made
+    if lang_in == "Spanish":
         pairs = [list(reversed(p)) for p in pairs]
-        input_lang = Lang(lang2)
-        output_lang = Lang(lang1)
-    else:
-        input_lang = Lang(lang1)
-        output_lang = Lang(lang2)
+
+    #create language objs for input and output lang
+    input_lang = Lang(lang_in)
+    output_lang = Lang(lang_out)
 
     return input_lang, output_lang, pairs
 
@@ -569,8 +568,10 @@ def evaluateFromInput(encoder, decoder):
 
 
 # execuatable stuff
-
-input_lang, output_lang, pairs = prepareData('eng', 'spa')
+#eng to spa
+input_lang, output_lang, pairs = prepareData('English', 'Spanish')
+#spa to eng
+#input_lang, output_lang, pairs = prepareData('Spanish', 'English', True)
 print(random.choice(pairs))
 
 hidden_size = 512
