@@ -125,8 +125,8 @@ def filterPairs(pairs):
 # -  Make word lists from sentences in pairs
 #
 
-def prepareData(lang1, lang2, reverse=False):
-    input_lang, output_lang, pairs = readLangs(lang1, lang2, reverse)
+def prepareData(lang1, lang2):
+    input_lang, output_lang, pairs = readLangs(lang1, lang2)
     print("Read %s sentence pairs" % len(pairs))
     pairs = filterPairs(pairs)
     print("Trimmed to %s sentence pairs" % len(pairs))
@@ -532,12 +532,6 @@ def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
 
         return decoded_words, decoder_attentions[:di + 1]
 
-
-######################################################################
-# We can evaluate random sentences from the training set and print out the
-# input, target, and output to make some subjective quality judgements:
-#
-
 def evaluateRandomly(encoder, decoder, n=10):
     for i in range(n):
         pair = random.choice(pairs)
@@ -547,24 +541,6 @@ def evaluateRandomly(encoder, decoder, n=10):
         output_sentence = ' '.join(output_words)
         print('<', output_sentence)
         print('')
-
-
-
-def evaluateFromInput(encoder, decoder):
-    #get input setence, pair[0] in example above
-    print()
-
-    print("Enter a sentence: ")
-    input_sentence = input(">> ")
-    print()
-    
-    output_words, attentions = evaluate(encoder, decoder, input_sentence)
-    output_sentence = ' '.join(output_words)
-
-    print("Translation: ")
-    print(">> ", output_sentence)
-
-    print()
 
 
 # execuatable stuff
