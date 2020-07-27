@@ -499,7 +499,12 @@ def showPlot(points):
 
 def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
-        input_tensor = tensorFromSentence(input_lang, sentence)
+        try:
+            input_tensor = tensorFromSentence(input_lang, sentence)
+        except KeyError:
+            print("Unknown input")
+            return None,None
+        
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
 
