@@ -502,9 +502,9 @@ def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
         try:
             input_tensor = tensorFromSentence(input_lang, sentence)
         except KeyError:
-            print("Unknown input")
+            #print("Unknown input")
             return None,None
-        
+
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
 
@@ -550,9 +550,9 @@ def evaluateRandomly(encoder, decoder, n=10):
 
 # execuatable stuff
 #eng to spa
-input_lang, output_lang, pairs = prepareData('English', 'Spanish')
+#input_lang, output_lang, pairs = prepareData('English', 'Spanish')
 #spa to eng
-#input_lang, output_lang, pairs = prepareData('Spanish', 'English', True)
+input_lang, output_lang, pairs = prepareData('Spanish', 'English')
 print(random.choice(pairs))
 
 hidden_size = 512
