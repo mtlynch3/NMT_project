@@ -5,23 +5,24 @@ from nltk.translate.bleu_score import sentence_bleu
 
 
 def evaluateFromInput(encoder, decoder):
-    #get input setence, pair[0] in example above
-    print()
+    while True:
+        #get input setence, pair[0] in example above
+        print()
 
-    print("Enter a sentence: ")
-    input_sentence = input(">> ")
-    print()
+        print("Enter a sentence: ")
+        input_sentence = input(">> ")
+        print()
 
-    #normalize input sentence
-    input_sentence = normalizeString(input_sentence)
-    
-    output_words, attentions = evaluate(encoder, decoder, input_sentence)
-    output_sentence = ' '.join(output_words)
+        #normalize input sentence
+        input_sentence = normalizeString(input_sentence)
+        
+        output_words, attentions = evaluate(encoder, decoder, input_sentence)
+        output_sentence = ' '.join(output_words)
 
-    print("Translation: ")
-    print(">> ", output_sentence)
+        print("Translation: ")
+        print(">> ", output_sentence)
 
-    print()
+        print()
 
 #assumes eng to spa when reverse=False
 def get_new_pairs(reverse=False):
@@ -53,33 +54,6 @@ def prepBLEU(sentence):
     return new_list
 
 
-def evalRandomNew(encoder, decoder, n=10):
-    new_pairs = get_new_pairs()
-    for i in range(n):
-        pair = random.choice(new_pairs)
-        print('>', pair[0])
-        print('=', pair[1])
-        output_words, attentions = evaluate(encoder, decoder, pair[0])
-        if output_words == None:
-            continue
-        output_sentence = ' '.join(output_words)
-        print('<', output_sentence)
-        print('')
-
-        target = pair[1].split()
-        output_words = prepBLEU(output_words)
-        target = prepBLEU(target)
-        print(output_words, target)
-
-        evalBLEU(output_words, target)
-
-# def evalBLEU(candidate, reference):
-#     reference = [reference]
-#     print('Cumulative 1-gram: %f' % sentence_bleu(reference, candidate, weights=(1, 0, 0, 0)))
-#     print('Cumulative 2-gram: %f' % sentence_bleu(reference, candidate, weights=(0.5, 0.5, 0, 0)))
-#     print('Cumulative 3-gram: %f' % sentence_bleu(reference, candidate, weights=(0.33, 0.33, 0.33, 0)))
-#     print('Cumulative 4-gram: %f' % sentence_bleu(reference, candidate, weights=(0.25, 0.25, 0.25, 0.25)))
-
 def evalBLEU(candidate, reference): #evaluates BLEU score for a single example
     reference = [reference]
     scores = []
@@ -104,7 +78,8 @@ def testTrainingData(encoder, decoder, n=100, remove_zeroes=False): #n = number 
     for i in range(n):
         pair = random.choice(pairs)
         if(i%500 == 0):
-            print("Read %d examples" % i)
+            display_num = i+500
+            print("Read %d examples" % display_num)
         output_words, attentions = evaluate(encoder, decoder, pair[0])
         output_sentence = ' '.join(output_words)
 
@@ -145,7 +120,8 @@ def testNewData(encoder, decoder, n=100, remove_zeroes=False, reverse=False):
     #process each example
     for i in range(n):
         if(i%500 == 0):
-            print("Read %d examples" % i)
+            display_num = i + 500
+            print("Read %d examples" % display_num)
             print("Processed %d examples" % actual_count)
 
         pair = random.choice(new_pairs)
@@ -183,40 +159,28 @@ def testNewData(encoder, decoder, n=100, remove_zeroes=False, reverse=False):
     return scores
     
 
-def evaluateRandomlyBLEU(encoder, decoder, n=10):
-    for i in range(n):
-        pair = random.choice(pairs)
-        print('>', pair[0])
-        print('=', pair[1])
-        output_words, attentions = evaluate(encoder, decoder, pair[0])
-        output_sentence = ' '.join(output_words)
-        print('<', output_sentence)
-        print('')
+###########
+##TESTING##
+########### 
 
-        target = pair[1].split()
-        output_words = prepBLEU(output_words)
-        target = prepBLEU(target)
-        print(output_words, target)
-        evalBLEU(output_words, target)
-    
+if e2s:
+    #english to spanish
+    encoder = torch.load("encoder-eng-spa-OpenSub.pt",map_location='cpu')
+    decoder = torch.load("decoder-eng-spa-OpenSub.pt",map_location='cpu')
+elif s2e:
+    #spanish to english
+    encoder = torch.load("encoder-spa-eng-OpenSub.pt",map_location='cpu')
+    decoder = torch.load("decoder-spa-eng-OpenSub.pt",map_location='cpu')
+else:
+    print("could not load models :/")
+    exit(1)
 
-#english to spanish
-# encoder = torch.load("encoder-eng-spa-OpenSub.pt",map_location='cpu')
-# decoder = torch.load("decoder-eng-spa-OpenSub.pt",map_location='cpu')
+#evaluateRandomly(encoder, decoder, 100)
+evaluateFromInput(encoder, decoder)
 
-#spanish to english
-encoder = torch.load("encoder-spa-eng-OpenSub.pt",map_location='cpu')
-decoder = torch.load("decoder-spa-eng-OpenSub.pt",map_location='cpu')
+#print("Averages: ", testTrainingData(encoder, decoder, 25000, True))
+#print("Averages: ", testNewData(encoder, decoder, 25000, True, s2e)) #last parameter for if spanish to english
 
-#print("Average for 1000 examples: ", testTrainingData(encoder, decoder, 1000, True))
-print("Average for 1000 examples: ", testNewData(encoder, decoder, 1000, True, True)) #last parameter for if spanish to english
 
-#evaluateRandomlyBLEU(encoder, decoder, 10)
-# print("-------------")
-# evalRandomNew(encoder, decoder, 10)
-
-#BLEU to do (for each 1,2,3 gram) (for trained data and new data)
-# true average 
-# removing zeroes
 
  

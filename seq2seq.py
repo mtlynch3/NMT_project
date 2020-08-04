@@ -6,6 +6,7 @@ import unicodedata
 import string
 import re
 import random
+import sys
 
 import torch
 import torch.nn as nn
@@ -30,7 +31,7 @@ class Lang:
     def __init__(self, name):
         self.name = name
         self.word2index = {}
-        self.word2count = {}
+        #self.word2count = {}
         self.index2word = {0: "SOS", 1: "EOS"}
         self.n_words = 2  # Count SOS and EOS
 
@@ -41,11 +42,11 @@ class Lang:
     def addWord(self, word):
         if word not in self.word2index:
             self.word2index[word] = self.n_words
-            self.word2count[word] = 1
+            #self.word2count[word] = 1
             self.index2word[self.n_words] = word
             self.n_words += 1
-        else:
-            self.word2count[word] += 1
+        # else:
+        #     self.word2count[word] += 1
 
 
 ######################################################################
@@ -379,6 +380,8 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
         for di in range(target_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_outputs)
+            #topk(1) returns the top element as: values=tensor (topv), indices=tensor (topi)
+            #only topi is used 
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
@@ -505,15 +508,20 @@ def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
             #print("Unknown input")
             return None,None
 
+        #ENCODER
+
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
 
         encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
 
+        #encoding input sentence
         for ei in range(input_length):
             encoder_output, encoder_hidden = encoder(input_tensor[ei],
                                                      encoder_hidden)
             encoder_outputs[ei] += encoder_output[0, 0]
+
+        #DECODER
 
         decoder_input = torch.tensor([[SOS_token]], device=device)  # SOS
 
@@ -522,10 +530,15 @@ def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
         decoded_words = []
         decoder_attentions = torch.zeros(max_length, max_length)
 
+        #decoding state into output sentence
         for di in range(max_length):
+            #call ATTNDecoder forward 
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_outputs)
+
             decoder_attentions[di] = decoder_attention.data
+            #topk(1) returns the top element as: values=tensor (topv), indices=tensor (topi)
+            #only topi is used 
             topv, topi = decoder_output.data.topk(1)
             if topi.item() == EOS_token:
                 decoded_words.append('<EOS>')
@@ -549,10 +562,26 @@ def evaluateRandomly(encoder, decoder, n=10):
 
 
 # execuatable stuff
+print(sys.argv[1])
+
+e2s = False
+s2e = False
+if sys.argv[1] == "e2s":
+    #eng to spa
+    e2s = True
+    input_lang, output_lang, pairs = prepareData('English', 'Spanish')
+elif sys.argv[1] == "s2e":
+    #spa to eng
+    s2e = True
+    input_lang, output_lang, pairs = prepareData('Spanish', 'English')
+else:
+    print("please specify e2s or s2e")
+    exit(1)
+
 #eng to spa
 #input_lang, output_lang, pairs = prepareData('English', 'Spanish')
 #spa to eng
-input_lang, output_lang, pairs = prepareData('Spanish', 'English')
+#input_lang, output_lang, pairs = prepareData('Spanish', 'English')
 print(random.choice(pairs))
 
 hidden_size = 512
