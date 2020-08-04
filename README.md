@@ -1,6 +1,6 @@
 To run evaluation of existing models:
   
-  python3 -W ignore loaded.py language-option
+  **python3 -W ignore loaded.py language-option**
   
   
 Warnings are ignored for BLEU score calculations
@@ -12,7 +12,7 @@ If you just want to play around I recommend using evaluateRandomly or evaluateFr
  
 To train new models:
 
-  python3 seq2seq.py language-option
+  **python3 seq2seq.py language-option**
   
 
 language-option: e2s is English to Spanish, s2e is Spanish to English
